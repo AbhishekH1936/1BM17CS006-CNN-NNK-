@@ -21,21 +21,14 @@
 #include "ns3/point-to-point-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/ipv4-global-routing-helper.h"
-
-// Default Network Topology
-//
-//       10.1.1.0
-// n0 -------------- n1   n2   n3   n4
-//    point-to-point  |    |    |    |
-//                    ================
-//                      LAN 10.1.2.0
-
+#include "ns3/netanim-module.h"
 
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("SecondScriptExample");
 
-int main (int argc, char *argv[])
+int 
+main (int argc, char *argv[])
 {
   bool verbose = true;
   uint32_t nCsma = 3;
@@ -57,25 +50,16 @@ int main (int argc, char *argv[])
   NodeContainer p2pNodes;
   p2pNodes.Create (2);
 
-  
-
   NodeContainer csmaNodes;
   csmaNodes.Add (p2pNodes.Get (1));
   csmaNodes.Create (nCsma);
-
-  NodeContainer p2pNodes1;
-  p2pNodes1.Add (csmaNodes.Get (nCsma));
-  p2pNodes1.Create (1);
-
-  
 
   PointToPointHelper pointToPoint;
   pointToPoint.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
   pointToPoint.SetChannelAttribute ("Delay", StringValue ("2ms"));
 
-  NetDeviceContainer p2pDevices,p2pDevices1;
+  NetDeviceContainer p2pDevices;
   p2pDevices = pointToPoint.Install (p2pNodes);
-  p2pDevices1 = pointToPoint.Install (p2pNodes1);
 
   CsmaHelper csma;
   csma.SetChannelAttribute ("DataRate", StringValue ("100Mbps"));
@@ -86,7 +70,6 @@ int main (int argc, char *argv[])
 
   InternetStackHelper stack;
   stack.Install (p2pNodes.Get (0));
-  stack.Install (p2pNodes1.Get (1));
   stack.Install (csmaNodes);
 
   Ipv4AddressHelper address;
@@ -94,48 +77,37 @@ int main (int argc, char *argv[])
   Ipv4InterfaceContainer p2pInterfaces;
   p2pInterfaces = address.Assign (p2pDevices);
 
-  address.SetBase ("10.1.3.0", "255.255.255.0");
-  Ipv4InterfaceContainer p2pInterfaces1;
-  p2pInterfaces1 = address.Assign (p2pDevices1);
-
   address.SetBase ("10.1.2.0", "255.255.255.0");
   Ipv4InterfaceContainer csmaInterfaces;
   csmaInterfaces = address.Assign (csmaDevices);
 
   UdpEchoServerHelper echoServer (9);
-  UdpEchoServerHelper echoServer1 (10);
 
-  ApplicationContainer serverApps = echoServer.Install (csmaNodes.Get (nCsma-1));
+  ApplicationContainer serverApps = echoServer.Install (csmaNodes.Get (nCsma));
   serverApps.Start (Seconds (1.0));
   serverApps.Stop (Seconds (10.0));
 
-  ApplicationContainer serverApps1 = echoServer1.Install (csmaNodes.Get (nCsma-1));
-  serverApps1.Start (Seconds (1.0));
-  serverApps1.Stop (Seconds (10.0));
-
-  UdpEchoClientHelper echoClient (csmaInterfaces.GetAddress (nCsma-1), 9);
+  UdpEchoClientHelper echoClient (csmaInterfaces.GetAddress (nCsma), 9);
   echoClient.SetAttribute ("MaxPackets", UintegerValue (1));
   echoClient.SetAttribute ("Interval", TimeValue (Seconds (1.0)));
   echoClient.SetAttribute ("PacketSize", UintegerValue (1024));
-
-  UdpEchoClientHelper echoClient1 (csmaInterfaces.GetAddress (nCsma-1), 10);
-  echoClient1.SetAttribute ("MaxPackets", UintegerValue (1));
-  echoClient1.SetAttribute ("Interval", TimeValue (Seconds (1.0)));
-  echoClient1.SetAttribute ("PacketSize", UintegerValue (1024));
-
 
   ApplicationContainer clientApps = echoClient.Install (p2pNodes.Get (0));
   clientApps.Start (Seconds (2.0));
   clientApps.Stop (Seconds (10.0));
 
-  ApplicationContainer clientApps1 = echoClient1.Install (p2pNodes1.Get (1));
-  clientApps1.Start (Seconds (2.0));
-  clientApps1.Stop (Seconds (10.0));
-
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
   pointToPoint.EnablePcapAll ("second");
   csma.EnablePcap ("second", csmaDevices.Get (1), true);
+  
+  AnimationInterface anim("netanim.xml");
+  anim.SetConstantPosition(p2pNodes.Get(0),1.0,2.0);
+  anim.SetConstantPosition(p2pNodes.Get(1),30.0,25.0);
+  anim.SetConstantPosition(csmaNodes.Get(1),15.0,65.0);
+  anim.SetConstantPosition(csmaNodes.Get(2),45.0,45.0);
+  anim.SetConstantPosition(csmaNodes.Get(3),35.0,90.0);
+  anim.EnablePacketMetadata(true);
 
   Simulator::Run ();
   Simulator::Destroy ();
